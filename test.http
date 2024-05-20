@@ -1,0 +1,9 @@
+POST http://localhost:4116/plant HTTP/1.1
+content-type: application/json
+
+{"plant_id": "testplant","humidity": 5}
+
+
+###
+
+GET http://localhost:4116/metrics HTTP/1.1 
