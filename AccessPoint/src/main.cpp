@@ -51,9 +51,8 @@ int main(int argc, char **argv) {
 
 	handler->start();
 	printf("started handler\n");
-
 	while(1) {
-		std::this_thread::yield();
+		sleep(1000);
 	}
 
 	handler->end();
