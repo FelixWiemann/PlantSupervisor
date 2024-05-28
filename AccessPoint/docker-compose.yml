@@ -1,12 +1,16 @@
-version: '3.4'
 
 services:
   accesspoint:
     image: accesspoint
+    cap_add:
+      - ALL
     build:
       context: .
       dockerfile: ./Dockerfile
     environment:
       NODE_ENV: production
+      TERM: xterm
+    network_mode: host
     ports:
       - 4116:4116
+        
