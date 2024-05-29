@@ -19,6 +19,7 @@ Etienne Arlaud
 
 using namespace std;
 
+#define MAX_HOST_NAME_LENGTH 265
 static uint8_t my_mac[6] = {0xF8, 0x1A, 0x67, 0xb7, 0xEB, 0x0B};
 static uint8_t dest_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static uint8_t ESP_mac[6] = {0xB4,0xE6,0x2D,0xB5,0x9F,0x85};
@@ -31,6 +32,7 @@ char addr[100] = {0};
 char buck[100] = {0};
 char usr[100] = {0};
 char tkn[100] = {0};
+char tag[MAX_HOST_NAME_LENGTH];
 int port = 0;
 
 void callback(uint8_t src_mac[6], uint8_t *data, int len) {
@@ -45,6 +47,12 @@ void callback(uint8_t src_mac[6], uint8_t *data, int len) {
 }
 
 void readCfg() {
+	// read host name and put in tag
+	char hostname[MAX_HOST_NAME_LENGTH];
+	gethostname(hostname, MAX_HOST_NAME_LENGTH);
+	sprintf(tag, "system=%s", hostname);
+
+	// read cfg file
 	FILE* fd = fopen("conf", "r");
 	if (fd == NULL) {
 		throw std::invalid_argument( "conf not found" );
@@ -77,11 +85,11 @@ int main(int argc, char **argv) {
 	
 	assert(argc > 1);
 	nice(-20);
-	readCfg();	
+	readCfg();
 
 	ic_influx_database(addr, port, buck);
 	ic_influx_userpw(usr,tkn);
-	ic_tags("");
+	ic_tags(tag);
 
 	handler = new ESPNOW_manager(argv[1], DATARATE_1Mbps, CHANNEL_freq_1, my_mac, dest_mac, false);
 	handler->set_filter(ESP_mac, dest_mac);
