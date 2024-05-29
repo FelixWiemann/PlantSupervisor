@@ -1,0 +1,3 @@
+# add to /etc/fstab
+
+appdata	/appdata	9p	trans=virtio,version9p2000.L,_netdev,rw	0	0

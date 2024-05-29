@@ -1,0 +1,13 @@
+[Unit]
+Description=Plant Supervisor
+After=network.target
+
+[Service]
+Type=idle
+ExecStart=/appdata/PlantSupervisor/listen.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+

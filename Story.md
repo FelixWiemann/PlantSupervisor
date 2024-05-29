@@ -49,7 +49,8 @@ This is where the docker journey came to an end. Unraid does not support wifi, t
 Unfortunately no Unraid Community App provides the drives for my NIC, and installing the drivers manually is also not option, as this would mean that I have to mess with the Unraid-OS - something I'd like to avoid. Also I'd most likely have to plug in the drivers or update the kernel after every UnRaid update... Not good/nice.
 
 After further brainstorming I decided to run a slim linux-vm on one core, pass through the NIC (friendly reminder to have HVM and IOMMU enabled in the BIOS. I did not. At first.) and have my application running there. Not as nice as having it run in a docker, but better than having to service the banana pi.
-Installing my app in a freshly built VM and setting up the WIFI NIC and auto starting the interface I was able to receive the same data my machine and my docker was receiving from the ESPs - success!
+Installing my app in a freshly built VM and setting up the WIFI NIC and auto starting the interface (see AccesssPoint/interfaces) I was able to receive the same data my machine and my docker was receiving from the ESPs - success!
+The VM requires net-tools & wireless-tools for managing the NIC, and build-essential for building the code in the VM to be installed.
 
 But why is the CPU usage at 100%? This got me to research for hours on hours on blocking, vs non blocking socket, polling vs selecting the sockets, and general networking in C.
 Trying everything and throwing `sleep()`s around the CPU usage never went down. After more time than I'd like to admit, I finally noticed that the main-loop of the main thread did nothing. At full CPU capcacity.
@@ -57,6 +58,9 @@ Turns out, throwing the sleep at the correct position works...
 But hey, at least I can now recommend  [Beej's Guide to Network Programming](https://beej.us/guide/bgnet/html/split/).
 
 Now that the CPU is idle most of the time and the VM is receiving everything it should, it is time to actually do something with the data.
+
+Lets set it up as a service so that it always starts when the VM reboots. (See AccessPoint/PlantSupervisor.service, copy it to `/etc/systemd/system/` and enable it with `systemctl enable PlantSupervisor.service`).
+
 
 ## the do something with the data
 Since I only recently (at the time of writing this) built the NAS, I only started meddling with collecting system data and displaying them. So I decided to use Prometheus for further collecting and Grafana for displaying the data, and also use the in Grafana builtin notification system to send me push messages.

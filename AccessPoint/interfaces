@@ -1,0 +1,6 @@
+# add this to your /etc/network/interfaces
+# note the output of ip a to change the interface for your wifi one. here wlp5s0
+
+allow-hotplug wlp5s0
+iface wlp5s0 inet manual
+	wireless-mode monitor
