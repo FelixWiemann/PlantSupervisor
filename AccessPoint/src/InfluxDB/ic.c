@@ -1,4 +1,4 @@
-/* 
+/*
 -> https://github.com/nigelargriffiths/InfluxDB-C-client/tree/main
  * Influx C (ic) client for data capture
  * Developer: Nigel Griffiths.
@@ -29,9 +29,11 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <inttypes.h>
 
 #define DEBUG   if(debug)
 #define MEGABYTE ( 1024 * 1024 ) /* USed as the default buffer sizes */
+#define ACCESS_TOKEN_LENGTH 88
 
 int debug = 0; /* 0=off, 1=on basic, 2=trace like output */
 
@@ -41,7 +43,7 @@ long influx_port = 0;
 
 char influx_database[256+1];		/* the influxdb database  */
 char influx_username[64+1];		/* optional for influxdb access */
-char influx_password[64+1];		/* optional for influxdb access */
+char influx_password[ACCESS_TOKEN_LENGTH+1];		/* optional for influxdb access */
 
 char *output; /* all the stats must fit in this buffer */
 long output_size = 0;
@@ -122,12 +124,11 @@ void ic_influx_userpw(char *user, char *pw)
 {
 	DEBUG fprintf(stderr,"ic_influx_userpw(username=%s,pssword=%s))\n",user,pw);
 	strncpy(influx_username,user,64);
-	strncpy(influx_password,pw,64);
+	strncpy(influx_password,pw,ACCESS_TOKEN_LENGTH);
 }
 
 int create_socket() 		/* returns 1 for error and 0 for ok */
 {
-    int i;
     static char buffer[4096];
     static struct sockaddr_in serv_addr;
 
@@ -172,8 +173,12 @@ void remove_ending_comma_if_any()
 void ic_measure(char *section)
 {
     ic_check( strlen(section) + strlen(influx_tags) + 3);
-
-    output_char += sprintf(&output[output_char], "%s,%s ", section, influx_tags);
+    // no tags
+    if (strlen(influx_tags)>0) {
+        output_char += sprintf(&output[output_char], "%s,%s ", section, influx_tags);
+    } else {
+        output_char += sprintf(&output[output_char], "%s ", section);
+    }
     strcpy(saved_section, section);
     first_sub = 1;
     subended = 0;
@@ -185,7 +190,7 @@ void ic_measureend()
     ic_check( 4 );
     remove_ending_comma_if_any();
     if (!subended) {
-         output_char += sprintf(&output[output_char], "   \n");
+        output_char += sprintf(&output[output_char], "   \n");
     }
     subended = 0;
     DEBUG fprintf(stderr, "ic_measureend()\n");
@@ -265,7 +270,6 @@ void ic_string(char *name, char *value)
 
 void ic_push()
 {
-    char header[1024];
     char result[1024];
     char buffer[1024 * 8];
     int ret;

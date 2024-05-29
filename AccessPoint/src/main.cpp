@@ -4,6 +4,8 @@ Etienne Arlaud
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdexcept>
 
 #include <assert.h>
 #include <unistd.h>
@@ -13,6 +15,7 @@ Etienne Arlaud
 
 #include "ESPNOW_manager.h"
 #include "ESPNOW_types.h"
+#include "ic.h"
 
 using namespace std;
 
@@ -24,31 +27,65 @@ ESPNOW_manager *handler;
 
 uint8_t payload[127];
 
+char addr[100] = {0};
+char buck[100] = {0};
+char usr[100] = {0};
+char tkn[100] = {0};
+int port = 0;
+
 void callback(uint8_t src_mac[6], uint8_t *data, int len) {
 	handler->mypacket.wlan.actionframe.content.length = 127 + 5;
 	memcpy(handler->mypacket.wlan.actionframe.content.payload, data, len);
-	printf("data: ");
-	for (int i = 0; i< len; i++) {
-		printf("%1x", *(data + i));
+	char out[20];
+    sprintf(out, "humidity,sensor=%d", src_mac[0]);
+	ic_measure(out);
+	ic_long("value", *(data+2));
+	ic_measureend();
+	ic_push();
+}
+
+void readCfg() {
+	FILE* fd = fopen("conf", "r");
+	if (fd == NULL) {
+		throw std::invalid_argument( "conf not found" );
 	}
-	printf("\n");
-	//handler->set_dst_mac(dest_mac);
-	//handler->send();
+
+    char arg[100] = {0};
+    char val[100] = {0};
+	
+	while (fscanf(fd, "%s %s\n", arg, val) == 2) {
+		if ( strcmp("ADDRESS", arg) == 0) {
+			strcpy(addr, val);
+		}
+		if ( strcmp("PORT", arg) == 0) {
+			port = strtol(val, NULL, 10);
+		}
+		if ( strcmp("BUCKET", arg) == 0) {
+			strcpy(buck, val);
+		}
+		if ( strcmp("USER", arg) == 0) {
+			strcpy(usr, val);
+		}
+		if ( strcmp("TOKEN", arg) == 0) {
+			strcpy(tkn, val);
+		}
+	}
 }
 
 int main(int argc, char **argv) {
 	setvbuf(stdout, NULL, _IOLBF, 0);
 	
 	assert(argc > 1);
-
 	nice(-20);
+	readCfg();	
+
+	ic_influx_database(addr, port, buck);
+	ic_influx_userpw(usr,tkn);
+	ic_tags("");
 
 	handler = new ESPNOW_manager(argv[1], DATARATE_1Mbps, CHANNEL_freq_1, my_mac, dest_mac, false);
-
 	handler->set_filter(ESP_mac, dest_mac);
-
 	handler->set_recv_callback(&callback);
-
 	handler->start();
 	printf("started handler\n");
 	while(1) {
