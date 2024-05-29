@@ -1,0 +1,6 @@
+ADDRESS <address of Influx>
+PORT <port of Influx>
+BUCKET <bucket to write into>
+USER <user>
+TOKEN <user token>
+
