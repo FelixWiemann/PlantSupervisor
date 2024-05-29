@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "__locale": "c",
+        "chrono": "cpp",
+        "text_encoding": "cpp",
+        "typeinfo": "cpp"
+    }
+}
