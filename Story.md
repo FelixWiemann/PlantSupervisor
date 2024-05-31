@@ -61,10 +61,23 @@ Now that the CPU is idle most of the time and the VM is receiving everything it 
 
 Lets set it up as a service so that it always starts when the VM reboots. (See AccessPoint/PlantSupervisor.service, copy it to `/etc/systemd/system/` and enable it with `systemctl enable PlantSupervisor.service`).
 
+However the recvfrom was dropping out after some random time, requiring a restart of the application or reboot of the VM. But only in the VM. Logging did not really get any results, the socket just did not get any more packets...
+So I dove into the socket options I can set, with no results. Setting a timeout just meant that I got an error after the timeout, but nothing really helping in finding the issue. I reran the code on my machine - without issues (It work's on my machine...).
+Without any results I started comparing the network interface settings, without finding any meaningfull entries. I finally decided to look through the kernel log and saw 
+```
+ath: phy0: DMA failed to stop in 10 ms AR_CR=0x00000028 AR_DIAG_SW=0x02000020 DMADBG_7=0x0002a800
+```
+My Atheros NIC has some issues. A quick google pointed to a workaround of adding `intel_iommu=off` to the grub settings. As this would only affect the system in the VM (and I did not want to run a VM inside that VM), I add the disabeling of the virtualization in the kernel.
+Since then the system seems to not have any issues anymore.
+
+I also had to disable sleep and hibernation with 
+```
+systemctl status sleep.target suspend.target hibernate.target hybrid-sleep.target
+```
 
 ## the do something with the data
 Since I only recently (at the time of writing this) built the NAS, I only started meddling with collecting system data and displaying them. So I decided to use Prometheus for further collecting and Grafana for displaying the data, and also use the in Grafana builtin notification system to send me push messages.
-However I quickly noticed, that Prometheus does not really play well with data that is from the moment it is scraping the data, but older data. Or even multiple data points of the same thing. Some research later I settled with an InfluxDB. I can run an InfluxDB in Docker on my NAS, send all the data from the data collector directly to the instance and let grafana do it's thing based on this data.
+However I quickly noticed, that Prometheus does not really play well with data that is from the moment it is scraping the data, but older data. Or even multiple data points of the same thing. Some research later I settled with an InfluxDB. I can run an InfluxDB in Docker on my NAS, send all the data from the data collector directly to the instance and let grafana do it's thing based on this data. Setting up an alert in Grafana when data is missing really helped me to test any attempts in fixing the random dropouts of the socket communication. Change something - let it run - wait until Grafana notifies me. Without having to babysit the graphs or manually checking them after the fact.
 
 # the hardware
 Finally time to talk about the hardware:
