@@ -3,6 +3,8 @@
 #include "nvs_flash.h"
 #include "esp_wifi.h"
 #include "esp_now.h"
+#include "driver/adc.h"
+#include "esp_log.h"
 
 #define CONFIG_ESPNOW_CHANNEL 1
 static uint8_t BORADCAST_MAC[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
@@ -50,25 +52,41 @@ static esp_err_t espnow_init(void)
     return ESP_OK;
 }
 
-#define SIZE 15
+int adc_raw[2][10];
+#define SIZE 3
 void app_main(void)
 {
     int i = 0;
     uint8_t payload[SIZE];
     for (int y = 0; y<SIZE; y++) {
-        payload[y] = 0;
+        payload[y] = y;
     }
 
     nvs_flash_init();
-    wifi_init();
-    espnow_init();
+    // config ADC2
+    adc2_config_channel_atten(ADC2_CHANNEL_3, ADC_ATTEN_DB_11);
+
     while (1)
     {
-        vTaskDelay(1000/portTICK_PERIOD_MS);
-        payload[i%SIZE] ++;
-        i++;
+        // read adc value
+        esp_err_t reading = adc2_get_raw(ADC2_CHANNEL_4,ADC_WIDTH_BIT_DEFAULT,&adc_raw[1][0]);
+        
+        // init wifi & esp_now
+        wifi_init();
+        espnow_init();
+        // build payload
+        payload[0] = ((adc_raw[1][0] >> 8) & 0xff)%255;
+        *(payload + 1) = (adc_raw[1][0] & 0xff)%255;
+        int val = 0;
+        val  = (*(payload) << 8) + *(payload + 1);
+        // send payload
         esp_now_send(BORADCAST_MAC, payload, SIZE);
-        /* code */
+        // deinit wifi & espnow to be able to read next cycle
+        esp_now_deinit();
+        esp_wifi_stop();
+        esp_wifi_deinit();
+        // delay
+        vTaskDelay(5000/portTICK_PERIOD_MS);
     }
     
     // Initialize NVS

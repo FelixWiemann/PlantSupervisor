@@ -41,7 +41,10 @@ void callback(uint8_t src_mac[6], uint8_t *data, int len) {
 	char out[20];
     sprintf(out, "humidity,sensor=%d", src_mac[0]);
 	ic_measure(out);
-	ic_long("value", *(data+2));
+	int val = 0;
+	val  = (*(data) << 8) + *(data + 1);
+	printf("got:  %0x\n", val);
+	ic_long("value", val);
 	ic_measureend();
 	ic_push();
 }
