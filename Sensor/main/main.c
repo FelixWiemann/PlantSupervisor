@@ -5,6 +5,7 @@
 #include "esp_now.h"
 #include "driver/adc.h"
 #include "esp_log.h"
+#include "esp_sleep.h"
 
 #define CONFIG_ESPNOW_CHANNEL 1
 static uint8_t BORADCAST_MAC[ESP_NOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
@@ -83,17 +84,23 @@ void send (int humidity) {
     esp_wifi_deinit();
 }
 
-void app_main(void)
-{
+#define ms 1000
+#define s 1000 * ms
+#define min 60 * s
+#define h 60 * m
+
+void app_main(void) {
     // Initialize NVS required for WIFI
     nvs_flash_init();
     // config ADC2
     adc2_config_channel_atten(ADC2_CHANNEL_3, ADC_ATTEN_DB_11);
 
+    esp_sleep_enable_timer_wakeup(30*min);
+
     while (1)
     {
         // measure multiple times and take average
-        uint8_t sum = 0;
+        int sum = 0;
         // read adc value
         for (int i = 0; i< MEASUREMENTS_FOR_AVERAGE; i++) {
             esp_err_t reading = adc2_get_raw(ADC2_CHANNEL_4,ADC_WIDTH_BIT_DEFAULT,&adc_raw[i]);
@@ -104,7 +111,8 @@ void app_main(void)
         // send data
         send(sum/MEASUREMENTS_FOR_AVERAGE);
         // set to sleep
-        vTaskDelay(5000/portTICK_PERIOD_MS);
+        esp_deep_sleep_start();
+        // vTaskDelay(1000/portTICK_PERIOD_MS);
     }
     
     // 10 bit -> 2byte feuchtigkeit
