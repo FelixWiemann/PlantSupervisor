@@ -52,44 +52,59 @@ static esp_err_t espnow_init(void)
     return ESP_OK;
 }
 
-int adc_raw[2][10];
-#define SIZE 3
-void app_main(void)
-{
+#define MEASUREMENTS_FOR_AVERAGE 5
+int adc_raw[MEASUREMENTS_FOR_AVERAGE];
+#define PAYLOAD_SIZE 4
+
+
+void send (int humidity) {
+    // init wifi & esp_now
+    wifi_init();
+    espnow_init();
+    // init payload
     int i = 0;
-    uint8_t payload[SIZE];
-    for (int y = 0; y<SIZE; y++) {
+    uint8_t payload[PAYLOAD_SIZE];
+    for (int y = 0; y<PAYLOAD_SIZE; y++) {
         payload[y] = y;
     }
 
+    // build payload
+    payload[0] = 0x00;                                 // Protocol version
+    payload[1] = 0x01;
+    *(payload + 2) = ((humidity >> 8) & 0xff)%256;  // MSB humidity
+    *(payload + 3) = (humidity & 0xff)%256;         // LSB humidity
+
+    // send payload
+    esp_now_send(BORADCAST_MAC, payload, PAYLOAD_SIZE);
+    // deinit wifi & espnow to be able to read next cycle
+    esp_now_deinit();
+    esp_wifi_stop();
+    esp_wifi_deinit();
+}
+
+void app_main(void)
+{
+    // Initialize NVS required for WIFI
     nvs_flash_init();
     // config ADC2
     adc2_config_channel_atten(ADC2_CHANNEL_3, ADC_ATTEN_DB_11);
 
     while (1)
     {
+        // measure multiple times and take average
+        int sum = 0;
         // read adc value
-        esp_err_t reading = adc2_get_raw(ADC2_CHANNEL_4,ADC_WIDTH_BIT_DEFAULT,&adc_raw[1][0]);
-        
-        // init wifi & esp_now
-        wifi_init();
-        espnow_init();
-        // build payload
-        payload[0] = ((adc_raw[1][0] >> 8) & 0xff)%256;
-        *(payload + 1) = (adc_raw[1][0] & 0xff)%256;
-        int val = 0;
-        val  = (*(payload) << 8) + *(payload + 1);
-        // send payload
-        esp_now_send(BORADCAST_MAC, payload, SIZE);
-        // deinit wifi & espnow to be able to read next cycle
-        esp_now_deinit();
-        esp_wifi_stop();
-        esp_wifi_deinit();
-        // delay
+        for (int i = 0; i< MEASUREMENTS_FOR_AVERAGE; i++) {
+            esp_err_t reading = adc2_get_raw(ADC2_CHANNEL_4,ADC_WIDTH_BIT_DEFAULT,&adc_raw[i]);
+            vTaskDelay(100/portTICK_PERIOD_MS);
+            sum += adc_raw[i];
+        }
+        // send data
+        send(sum/MEASUREMENTS_FOR_AVERAGE);
+        // set to sleep
         vTaskDelay(5000/portTICK_PERIOD_MS);
     }
     
-    // Initialize NVS
     // 10 bit -> 2byte feuchtigkeit
     // feuchtigkeit: ad -> wandler 0-3.3V 0 -> 1024 -> 2byte (1024 = 0x0400)
     // batteriespannung: ad -> wandler 0-5V 0 -> 1024 -> 2byte (1024 = 0x0400)
