@@ -1,7 +1,3 @@
-/*
-Etienne Arlaud
-*/
-
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +12,12 @@ Etienne Arlaud
 #include "ESPNOW_manager.h"
 #include "ESPNOW_types.h"
 #include "ic.h"
+
+
+#ifndef MAC2STR
+	#define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
+	#define MACSTR "%02x:%02x:%02x:%02x:%02x:%02x"
+#endif
 
 using namespace std;
 
@@ -35,18 +37,37 @@ char tkn[100] = {0};
 char tag[MAX_HOST_NAME_LENGTH];
 int port = 0;
 
-void callback(uint8_t src_mac[6], uint8_t *data, int len) {
-	handler->mypacket.wlan.actionframe.content.length = 127 + 5;
-	memcpy(handler->mypacket.wlan.actionframe.content.payload, data, len);
+// handles protocol version 1 -> 0x00 0x01 MSB LSB
+void handleProtV1 (uint8_t src_mac[6], uint8_t *data, int len) {
+	char out[46];
+    sprintf(out, "humidity,sensor="MACSTR",protocol=1", MAC2STR(src_mac));
+	ic_measure(out);
+	int val = 0;
+	val  = (*(data+3) << 8) + *(data + 4);
+	ic_long("value", val);
+	ic_measureend();
+	ic_push();
+}
+
+// handles protocol version undefined -> MSB LSB 0
+void handleNoProtocol (uint8_t src_mac[6], uint8_t *data, int len) {
 	char out[20];
     sprintf(out, "humidity,sensor=%d", src_mac[0]);
 	ic_measure(out);
 	int val = 0;
 	val  = (*(data) << 8) + *(data + 1);
-	printf("got:  %0x\n", val);
 	ic_long("value", val);
 	ic_measureend();
 	ic_push();
+}
+
+void callback(uint8_t src_mac[6], uint8_t *data, int len) {
+	// check payload version
+	if (*data == 0x00 && *(data + 1) == 0x01 ) {
+		handleProtV1(src_mac, data, len);
+	} else {
+		handleNoProtocol(src_mac, data, len);
+	}
 }
 
 void readCfg() {

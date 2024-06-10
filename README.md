@@ -36,3 +36,10 @@ plant_ground_humidity{plant_id="testplant"} 3 1716208190095
 
 After the data has been gathered, the endpoint will delete all stored data.
 The data is not persisted across reboots.
+
+
+## protocol versions:
+
+size |  Version  | values 
+ 3   |    N/A    | humidity value => len3: MSB, LSB, 0
+ 4   | 0x00 0x01 | humidity value => len2: MSB, LSB 
