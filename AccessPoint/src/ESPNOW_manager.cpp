@@ -16,6 +16,7 @@
 #include "ESPNOW_manager.h"
 
 #include "ESPNOW_types.h"
+#include <thread>
 
 #define MAC_2_MSBytes(MAC)  MAC == NULL ? 0 : (MAC[0] << 8) | MAC[1]
 #define MAC_4_LSBytes(MAC)  MAC == NULL ? 0 : (((((MAC[2] << 8) | MAC[3]) << 8) | MAC[4]) << 8) | MAC[5]
@@ -43,15 +44,6 @@ void ESPNOW_manager::set_filter(uint8_t *src_mac, uint8_t *dst_mac) {
 
 	this->bpf.len = 13;
 
-	uint32_t MSB_dst = MAC_2_MSBytes(dst_mac);
-	uint32_t LSB_dst = MAC_4_LSBytes(dst_mac);
-
-	uint32_t MSB_src = MAC_2_MSBytes(src_mac);
-	uint32_t LSB_src = MAC_4_LSBytes(src_mac);
-
-	uint8_t jeq_dst = dst_mac == NULL ? 0x30 : 0x15; //0x30 jump if >=. 0x15 jump if ==.
-	uint8_t jeq_src = src_mac == NULL ? 0x30 : 0x15;
-
 	struct sock_filter myFilter[13] = {
 		{ 0x30, 0, 0, 0x00000003 },
 		{ 0x64, 0, 0, 0x00000008 },
@@ -68,62 +60,6 @@ void ESPNOW_manager::set_filter(uint8_t *src_mac, uint8_t *dst_mac) {
 		{ 0x6, 0, 0, 0x00000000 }
 	};
 
-	/*struct sock_filter temp_code[this->bpf.len] = {
-			{ 0x30, 0, 0, 0x00000003 },
-			{ 0x64, 0, 0, 0x00000008 },
-			{ 0x7, 0, 0, 0x00000000 },
-			{ 0x30, 0, 0, 0x00000002 },
-			{ 0x4c, 0, 0, 0x00000000 },
-			{ 0x2, 0, 0, 0x00000000 },
-			{ 0x7, 0, 0, 0x00000000 },
-			{ 0x50, 0, 0, 0x00000000 },
-			{ 0x54, 0, 0, 0x000000fc },
-			{ 0x15, 0, 42, 0x000000d0 },
-			{ 0x40, 0, 0, 0x00000018 },
-			{ 0x15, 0, 40, 0x7f18fe34 },
-			{ 0x50, 0, 0, 0x00000020 },
-			{ 0x15, 0, 38, 0x000000dd },
-			{ 0x40, 0, 0, 0x00000021 },
-			{ 0x54, 0, 0, 0x00ffffff },
-			{ 0x15, 0, 35, 0x0018fe34 },
-			{ 0x50, 0, 0, 0x00000025 },
-			{ 0x15, 0, 33, 0x00000004 },
-			{ 0x50, 0, 0, 0x00000000 },
-			{ 0x45, 31, 0, 0x00000004 },
-			{ 0x45, 0, 21, 0x00000008 },
-			{ 0x50, 0, 0, 0x00000001 },
-			{ 0x45, 0, 4, 0x00000001 },
-			{ 0x40, 0, 0, 0x00000012 },
-			{ jeq_dst, 0, 26, LSB_dst },
-			{ 0x48, 0, 0, 0x00000010 },
-			{ jeq_dst, 4, 24, MSB_dst },
-			{ 0x40, 0, 0, 0x00000006 },
-			{ jeq_dst, 0, 22, LSB_dst },
-			{ 0x48, 0, 0, 0x00000004 },
-			{ jeq_dst, 0, 20, MSB_dst },
-			{ 0x50, 0, 0, 0x00000001 },
-			{ 0x45, 0, 13, 0x00000002 },
-			{ 0x45, 0, 4, 0x00000001 },
-			{ 0x40, 0, 0, 0x0000001a },
-			{ jeq_src, 0, 15, LSB_src },
-			{ 0x48, 0, 0, 0x00000018 },
-			{ jeq_src, 12, 13, MSB_src },
-			{ 0x40, 0, 0, 0x00000012 },
-			{ jeq_src, 0, 11, LSB_src },
-			{ 0x48, 0, 0, 0x00000010 },
-			{ jeq_src, 8, 9, MSB_src },
-			{ 0x40, 0, 0, 0x00000006 },
-			{ jeq_dst, 0, 7, LSB_dst },
-			{ 0x48, 0, 0, 0x00000004 },
-			{ jeq_dst, 0, 5, MSB_dst },
-			{ 0x40, 0, 0, 0x0000000c },
-			{ jeq_src, 0, 3, LSB_src },
-			{ 0x48, 0, 0, 0x0000000a },
-			{ jeq_src, 0, 1, MSB_src },
-			{ 0x6, 0, 0, 0x00040000 },
-			{ 0x6, 0, 0, 0x00000000 }
-						};
-*/
 	this->bpf.filter = (sock_filter*) malloc(sizeof(sock_filter)*this->bpf.len);
 	memcpy(this->bpf.filter, myFilter, sizeof(struct sock_filter) * this->bpf.len);
 }
@@ -167,7 +103,7 @@ void ESPNOW_manager::start() {
 
 	priority_errno = setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &(this->socket_priority), sizeof(this->socket_priority));
 	assert(priority_errno ==0);
-	
+
 	this->sock_fd = fd;
 
 	this->recv_thread_params.sock_fd = this->sock_fd;
@@ -177,8 +113,10 @@ void ESPNOW_manager::start() {
 }
 
 void ESPNOW_manager::stop() {
+	printf("end socket receive");
 	if(recv_thd_id) {
 		pthread_cancel(recv_thd_id);
+		pthread_join(recv_thd_id, NULL);
 	}
 	if (this->sock_fd > 0)
     {
@@ -189,15 +127,6 @@ void ESPNOW_manager::stop() {
 void ESPNOW_manager::end() {
 	stop();
 
-	if(this->interface != NULL) {
-		free(this->interface);
-		this->interface = NULL;
-	}
-	
-	if(this->bpf.filter != NULL) {
-		free(this->bpf.filter);
-		this->bpf.filter = NULL;
-	}
 }
 
 void* ESPNOW_manager::sock_recv_thread (void *p_arg)
@@ -215,32 +144,34 @@ void* ESPNOW_manager::sock_recv_thread (void *p_arg)
 		printf ("No callback for receive, receive thread exited\n");
     	return EXIT_SUCCESS;
 	};
-
+	printf("start socket receive\n");
 	while(1)
     {	
-		// TODO machso, weil sonst CPU https://stackoverflow.com/questions/14396401/udp-recvfrom-thread-use-too-much-cpu-resources
-        raw_bytes_len = recvfrom (params.sock_fd, raw_bytes, LEN_RAWBYTES_MAX, MSG_TRUNC, NULL, 0);
+		raw_bytes_len = recvfrom (params.sock_fd, raw_bytes, LEN_RAWBYTES_MAX, MSG_TRUNC, NULL, 0);
 
-        if( -1 == raw_bytes_len )
-        {
-            perror ("Socket receive failed");
+		if( -1 == raw_bytes_len )
+		{
+			perror ("Socket receive failed");
 			printf("\n");
-            // break;
-        }
-        else if( raw_bytes_len < 0 )
-        {
-            perror ("Socket receive, error ");
+		}
+		else if( raw_bytes_len < 0 )
+		{
+			perror ("Socket receive, error ");
 			printf("\n");
-        }
-        else
-        {
-        	res_mac = ESPNOW_packet::get_src_mac(raw_bytes,raw_bytes_len);
-        	res_payload = ESPNOW_packet::get_payload(raw_bytes, raw_bytes_len);
-        	res_len = ESPNOW_packet::get_payload_len(raw_bytes, raw_bytes_len);
-        	if(res_mac != NULL && res_payload != NULL && res_len > 0) {
-        		params.callback(res_mac, res_payload, res_len);
-        	}
-        }
+		}
+		else
+		{
+			res_mac = ESPNOW_packet::get_src_mac(raw_bytes,raw_bytes_len);
+			res_payload = ESPNOW_packet::get_payload(raw_bytes, raw_bytes_len);
+			res_len = ESPNOW_packet::get_payload_len(raw_bytes, raw_bytes_len);
+			if(res_mac != NULL && res_payload != NULL && res_len > 0) {
+				params.callback(res_mac, res_payload, res_len);
+				// reset data after receiving
+				for (int i = 0; i < LEN_RAWBYTES_MAX; i++) {
+					raw_bytes [i] = 0xff;
+				}
+			}
+		}
     }
 
     printf ("Receive thread exited \n");
