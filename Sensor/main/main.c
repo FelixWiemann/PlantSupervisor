@@ -75,8 +75,8 @@ void app_main(void)
         wifi_init();
         espnow_init();
         // build payload
-        payload[0] = ((adc_raw[1][0] >> 8) & 0xff)%255;
-        *(payload + 1) = (adc_raw[1][0] & 0xff)%255;
+        payload[0] = ((adc_raw[1][0] >> 8) & 0xff)%256;
+        *(payload + 1) = (adc_raw[1][0] & 0xff)%256;
         int val = 0;
         val  = (*(payload) << 8) + *(payload + 1);
         // send payload
