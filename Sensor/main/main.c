@@ -67,12 +67,13 @@ void send (int humidity) {
     for (int y = 0; y<PAYLOAD_SIZE; y++) {
         payload[y] = y;
     }
+    printf("humidity: %d\n", humidity);
 
     // build payload
     payload[0] = 0x00;                                 // Protocol version
     payload[1] = 0x01;
-    *(payload + 2) = ((humidity >> 8) & 0xff)%256;  // MSB humidity
-    *(payload + 3) = (humidity & 0xff)%256;         // LSB humidity
+    payload[2] = ((humidity >> 8) & 0xff)%256;  // MSB humidity
+    payload[3] = (humidity & 0xff)%256;         // LSB humidity
 
     // send payload
     esp_now_send(BORADCAST_MAC, payload, PAYLOAD_SIZE);
@@ -92,12 +93,13 @@ void app_main(void)
     while (1)
     {
         // measure multiple times and take average
-        int sum = 0;
+        uint8_t sum = 0;
         // read adc value
         for (int i = 0; i< MEASUREMENTS_FOR_AVERAGE; i++) {
             esp_err_t reading = adc2_get_raw(ADC2_CHANNEL_4,ADC_WIDTH_BIT_DEFAULT,&adc_raw[i]);
             vTaskDelay(100/portTICK_PERIOD_MS);
             sum += adc_raw[i];
+            adc_raw[i] = 0;
         }
         // send data
         send(sum/MEASUREMENTS_FOR_AVERAGE);

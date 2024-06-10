@@ -43,7 +43,7 @@ void handleProtV1 (uint8_t src_mac[6], uint8_t *data, int len) {
     sprintf(out, "humidity,sensor="MACSTR",protocol=1", MAC2STR(src_mac));
 	ic_measure(out);
 	int val = 0;
-	val  = (*(data+3) << 8) + *(data + 4);
+	val  = (data[2] << 8) + data[3];
 	ic_long("value", val);
 	ic_measureend();
 	ic_push();
